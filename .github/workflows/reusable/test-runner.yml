@@ -1,0 +1,76 @@
+name: Test Runner (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: 'Node.js version to use'
+        required: false
+        default: '18'
+        type: string
+      package-manager:
+        description: 'Package manager to use (npm, yarn, pnpm)'
+        required: false
+        default: 'npm'
+        type: string
+      test-command:
+        description: 'Test command to run'
+        required: false
+        default: 'test'
+        type: string
+      cache-key:
+        description: 'Cache key for dependencies'
+        required: false
+        default: 'deps-${{ inputs.package-manager }}'
+        type: string
+      install-command:
+        description: 'Install command to run'
+        required: false
+        default: '${{ inputs.package-manager }} install'
+        type: string
+    secrets:
+      NPM_TOKEN:
+        required: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: ['${{ inputs.node-version }}']
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: ${{ inputs.package-manager }}
+          cache-dependency-path: |
+            **/package-lock.json
+            **/yarn.lock
+            **/pnpm-lock.yaml
+          registry-url: 'https://registry.npmjs.org'
+          scope: '@your-org'
+
+      - name: Install dependencies
+        run: ${{ inputs.install-command }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Run tests
+        run: ${{ inputs.package-manager }} run ${{ inputs.test-command }}
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.node-version }}
+          path: |
+            coverage/
+            test-results/
+            junit.xml
+            coverage.xml
+          retention-days: 30 

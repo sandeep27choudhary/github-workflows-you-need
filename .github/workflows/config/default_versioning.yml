@@ -1,0 +1,110 @@
+# Versioning Configuration
+# This file defines how semantic versioning should work for the project
+
+# Version bump rules based on commit types
+version_bump_rules:
+  # Major version bump (breaking changes)
+  major:
+    - "BREAKING CHANGE"
+    - "!:"  # Breaking change indicator in conventional commits
+    - "major:"
+    - "breaking:"
+  
+  # Minor version bump (new features)
+  minor:
+    - "feat:"
+    - "feature:"
+    - "minor:"
+  
+  # Patch version bump (bug fixes and minor changes)
+  patch:
+    - "fix:"
+    - "bugfix:"
+    - "patch:"
+    - "docs:"
+    - "style:"
+    - "refactor:"
+    - "perf:"
+    - "test:"
+    - "chore:"
+
+# Default version if no package.json exists
+default_version: "0.1.0"
+
+# Branch configuration
+branches:
+  # Main branches that trigger releases
+  release_branches:
+    - "main"
+    - "master"
+  
+  # Development branches
+  development_branches:
+    - "develop"
+    - "dev"
+  
+  # Feature branches (no releases)
+  feature_branches:
+    - "feature/*"
+    - "feat/*"
+
+# Release configuration
+release:
+  # Create GitHub releases automatically
+  create_github_release: true
+  
+  # Generate changelog from commit messages
+  generate_changelog: true
+  
+  # Include commit hash in changelog
+  include_commit_hash: true
+  
+  # Draft release (requires manual approval)
+  draft_release: false
+  
+  # Pre-release for development branches
+  prerelease: false
+  
+  # Release notes template
+  notes_template: |
+    ## What's Changed
+    
+    {changelog}
+    
+    ## Installation
+    
+    ```bash
+    npm install @your-org/your-package@{version}
+    ```
+    
+    ## Breaking Changes
+    
+    {breaking_changes}
+    
+    ## New Features
+    
+    {new_features}
+    
+    ## Bug Fixes
+    
+    {bug_fixes}
+
+# Skip release keywords
+skip_keywords:
+  - "[skip ci]"
+  - "[no release]"
+  - "[skip release]"
+  - "WIP:"
+  - "Draft:"
+
+# Conventional commit types mapping
+commit_types:
+  feat: "New Features"
+  fix: "Bug Fixes"
+  docs: "Documentation"
+  style: "Code Style"
+  refactor: "Code Refactoring"
+  perf: "Performance Improvements"
+  test: "Tests"
+  chore: "Chores"
+  breaking: "Breaking Changes" 

@@ -1,0 +1,101 @@
+# Sensitive Files Configuration
+# This file defines patterns for files that should not be committed to the repository
+
+# Patterns for sensitive files that should be detected and blocked
+sensitive_patterns:
+  # Environment files
+  - "\\.env$"
+  - "\\.env\\..*"
+  - "env\\..*"
+  
+  # Secret files
+  - "secrets\\.json"
+  - "secrets\\.yml"
+  - "secrets\\.yaml"
+  - ".*\\.key$"
+  - ".*\\.pem$"
+  - ".*\\.p12$"
+  - ".*\\.pfx$"
+  
+  # Configuration files with sensitive data
+  - "config\\.json"
+  - "config\\.yml"
+  - "config\\.yaml"
+  - "settings\\.json"
+  - "settings\\.yml"
+  - "settings\\.yaml"
+  
+  # Certificate files
+  - ".*\\.crt$"
+  - ".*\\.cer$"
+  - ".*\\.der$"
+  - ".*\\.p7b$"
+  
+  # Private key files
+  - ".*\\.priv$"
+  - ".*\\.private$"
+  - "id_rsa$"
+  - "id_dsa$"
+  - "id_ecdsa$"
+  - "id_ed25519$"
+  
+  # Database files
+  - ".*\\.db$"
+  - ".*\\.sqlite$"
+  - ".*\\.sqlite3$"
+  
+  # Log files with sensitive data
+  - ".*\\.log$"
+  - "logs/.*"
+  
+  # Backup files
+  - ".*\\.bak$"
+  - ".*\\.backup$"
+  - ".*\\.tmp$"
+  - ".*\\.temp$"
+
+# Patterns for files that should be excluded from sensitive file detection
+# These are typically example files or intentionally included sensitive files
+excluded_patterns:
+  # Example environment files
+  - "\\.env\\.example$"
+  - "\\.env\\.sample$"
+  - "\\.env\\.template$"
+  - "env\\.example$"
+  - "env\\.sample$"
+  - "env\\.template$"
+  
+  # Example configuration files
+  - "config\\.example\\.json"
+  - "config\\.sample\\.json"
+  - "config\\.template\\.json"
+  - "settings\\.example\\.json"
+  - "settings\\.sample\\.json"
+  - "settings\\.template\\.json"
+  
+  # Documentation files
+  - "docs/.*"
+  - "documentation/.*"
+  - "README.*"
+  - "CHANGELOG.*"
+  - "LICENSE.*"
+  
+  # Test files
+  - "test/.*"
+  - "tests/.*"
+  - ".*\\.test\\..*"
+  - ".*\\.spec\\..*"
+  
+  # CI/CD configuration
+  - "\\.github/.*"
+  - "ci/.*"
+  - "cd/.*"
+  
+  # Dependencies and lock files
+  - "package\\.json"
+  - "package-lock\\.json"
+  - "yarn\\.lock"
+  - "pnpm-lock\\.yaml"
+  - "requirements\\.txt"
+  - "Pipfile"
+  - "Pipfile\\.lock" 

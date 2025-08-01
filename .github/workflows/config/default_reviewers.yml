@@ -1,0 +1,45 @@
+# Default PR Reviewers Configuration
+# This file defines who should be automatically assigned as reviewers for PRs
+
+# Default reviewers for all PRs
+default_reviewers:
+  - "team-lead"
+  - "senior-dev"
+
+# Path-based reviewers
+# Use regex patterns to match file paths and assign specific reviewers
+path_reviewers:
+  # Frontend changes
+  "frontend/.*":
+    - "frontend-lead"
+    - "ui-ux-expert"
+  
+  # Backend changes
+  "backend/.*|api/.*":
+    - "backend-lead"
+    - "senior-backend"
+  
+  # Infrastructure changes
+  "terraform/.*|infrastructure/.*|\\.github/.*":
+    - "devops-lead"
+    - "infrastructure-admin"
+  
+  # Security-related changes
+  "security/.*|auth/.*":
+    - "security-lead"
+    - "senior-dev"
+  
+  # Database changes
+  "database/.*|migrations/.*":
+    - "database-admin"
+    - "senior-backend"
+  
+  # Documentation changes
+  "docs/.*|README.*":
+    - "tech-writer"
+    - "team-lead"
+  
+  # Configuration files
+  "config/.*|\\.env\\..*":
+    - "devops-lead"
+    - "senior-dev" 

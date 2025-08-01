@@ -1,0 +1,96 @@
+name: S3 Bucket Migration
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_bucket:
+        description: 'Source S3 bucket name'
+        required: true
+        type: string
+      target_bucket:
+        description: 'Target S3 bucket name'
+        required: true
+        type: string
+      source_account_profile:
+        description: 'AWS profile for source account'
+        required: true
+        type: string
+      target_account_profile:
+        description: 'AWS profile for target account'
+        required: true
+        type: string
+      migrate_all:
+        description: 'Migrate all buckets or just specified ones'
+        required: false
+        default: false
+        type: boolean
+      preserve_acl:
+        description: 'Preserve ACLs during migration'
+        required: false
+        default: true
+        type: boolean
+      preserve_metadata:
+        description: 'Preserve metadata during migration'
+        required: false
+        default: true
+        type: boolean
+      dry_run:
+        description: 'Perform a dry run without actual migration'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  s3-migration:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials for source account
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_SOURCE }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_SOURCE }}
+          aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN_SOURCE }}
+          role-session-name: s3-migration-source
+
+      - name: Configure AWS credentials for target account
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_TARGET }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_TARGET }}
+          aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN_TARGET }}
+          role-session-name: s3-migration-target
+
+      - name: Install AWS CLI and dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-pip
+          pip3 install awscli --upgrade
+          pip3 install boto3
+
+      - name: Run S3 migration script
+        env:
+          SOURCE_BUCKET: ${{ github.event.inputs.source_bucket }}
+          TARGET_BUCKET: ${{ github.event.inputs.target_bucket }}
+          SOURCE_PROFILE: ${{ github.event.inputs.source_account_profile }}
+          TARGET_PROFILE: ${{ github.event.inputs.target_account_profile }}
+          MIGRATE_ALL: ${{ github.event.inputs.migrate_all }}
+          PRESERVE_ACL: ${{ github.event.inputs.preserve_acl }}
+          PRESERVE_METADATA: ${{ github.event.inputs.preserve_metadata }}
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
+        run: |
+          python3 .github/scripts/s3_migration.py
+
+      - name: Upload migration logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: s3-migration-logs
+          path: |
+            migration_logs/
+            *.log
+          retention-days: 30 

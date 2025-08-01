@@ -1,0 +1,87 @@
+name: Auto Assign PR Reviewers
+
+on:
+  pull_request:
+    types: [opened, ready_for_review, synchronize]
+
+jobs:
+  assign-reviewers:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Load reviewer configuration
+        id: config
+        run: |
+          if [ -f ".github/auto_reviewers.yml" ]; then
+            echo "config_file=.github/auto_reviewers.yml" >> $GITHUB_OUTPUT
+          else
+            echo "config_file=.github/workflows/config/default_reviewers.yml" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Auto assign reviewers
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const yaml = require('js-yaml');
+            
+            // Load configuration
+            const configFile = '${{ steps.config.outputs.config_file }}';
+            const config = yaml.load(fs.readFileSync(configFile, 'utf8'));
+            
+            // Get PR details
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+            
+            // Get changed files
+            const { data: files } = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+            
+            const changedFiles = files.map(file => file.filename);
+            
+            // Determine reviewers based on file paths
+            let reviewers = new Set();
+            
+            // Add default reviewers
+            if (config.default_reviewers) {
+              config.default_reviewers.forEach(reviewer => reviewers.add(reviewer));
+            }
+            
+            // Check path-based reviewers
+            if (config.path_reviewers) {
+              for (const [pattern, pathReviewers] of Object.entries(config.path_reviewers)) {
+                const regex = new RegExp(pattern);
+                const hasMatchingFiles = changedFiles.some(file => regex.test(file));
+                
+                if (hasMatchingFiles) {
+                  pathReviewers.forEach(reviewer => reviewers.add(reviewer));
+                }
+              }
+            }
+            
+            // Convert to array and filter out existing reviewers
+            const currentReviewers = pr.requested_reviewers?.map(r => r.login) || [];
+            const newReviewers = Array.from(reviewers).filter(r => !currentReviewers.includes(r));
+            
+            if (newReviewers.length > 0) {
+              await github.rest.pulls.requestReviewers({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.issue.number,
+                reviewers: newReviewers
+              });
+              
+              console.log(`Assigned reviewers: ${newReviewers.join(', ')}`);
+            } else {
+              console.log('No new reviewers to assign');
+            } 

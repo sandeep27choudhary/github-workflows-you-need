@@ -1,0 +1,173 @@
+name: Version and Release
+
+on:
+  push:
+    branches: [main, master]
+
+jobs:
+  version-and-release:
+    runs-on: ubuntu-latest
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') && !contains(github.event.head_commit.message, '[no release]') }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Load versioning configuration
+        id: config
+        run: |
+          if [ -f ".github/versioning.yml" ]; then
+            echo "config_file=.github/versioning.yml" >> $GITHUB_OUTPUT
+          else
+            echo "config_file=.github/workflows/config/default_versioning.yml" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Determine version bump
+        id: version
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const yaml = require('js-yaml');
+            const { execSync } = require('child_process');
+            
+            // Load configuration
+            const configFile = '${{ steps.config.outputs.config_file }}';
+            const config = yaml.load(fs.readFileSync(configFile, 'utf8'));
+            
+            // Get commit messages since last tag
+            const lastTag = execSync('git describe --tags --abbrev=0 2>/dev/null || echo ""', { encoding: 'utf8' }).trim();
+            
+            let commitRange = 'HEAD';
+            if (lastTag) {
+              commitRange = `${lastTag}..HEAD`;
+            }
+            
+            const commits = execSync(`git log ${commitRange} --pretty=format:"%s"`, { encoding: 'utf8' })
+              .trim()
+              .split('\n')
+              .filter(commit => commit.length > 0);
+            
+            // Determine version bump based on conventional commits
+            let bumpType = 'patch'; // default
+            
+            for (const commit of commits) {
+              if (commit.match(/^feat\(.*\):/) || commit.match(/^feat:/)) {
+                bumpType = 'minor';
+                break;
+              } else if (commit.match(/^fix\(.*\):/) || commit.match(/^fix:/)) {
+                bumpType = 'patch';
+              } else if (commit.match(/^BREAKING CHANGE:/) || commit.match(/^.*!:/)) {
+                bumpType = 'major';
+                break;
+              }
+            }
+            
+            // Get current version from package.json
+            let currentVersion = '0.1.0';
+            if (fs.existsSync('package.json')) {
+              const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+              currentVersion = packageJson.version || '0.1.0';
+            }
+            
+            // Calculate new version
+            const [major, minor, patch] = currentVersion.split('.').map(Number);
+            let newVersion;
+            
+            switch (bumpType) {
+              case 'major':
+                newVersion = `${major + 1}.0.0`;
+                break;
+              case 'minor':
+                newVersion = `${major}.${minor + 1}.0`;
+                break;
+              case 'patch':
+                newVersion = `${major}.${minor}.${patch + 1}`;
+                break;
+            }
+            
+            console.log(`Current version: ${currentVersion}`);
+            console.log(`Bump type: ${bumpType}`);
+            console.log(`New version: ${newVersion}`);
+            
+            core.setOutput('current-version', currentVersion);
+            core.setOutput('new-version', newVersion);
+            core.setOutput('bump-type', bumpType);
+            core.setOutput('should-release', commits.length > 0 ? 'true' : 'false');
+
+      - name: Update package.json version
+        if: steps.version.outputs.should-release == 'true'
+        run: |
+          if [ -f "package.json" ]; then
+            npm version ${{ steps.version.outputs.new-version }} --no-git-tag-version
+            echo "Updated package.json to version ${{ steps.version.outputs.new-version }}"
+          fi
+
+      - name: Generate changelog
+        if: steps.version.outputs.should-release == 'true'
+        id: changelog
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { execSync } = require('child_process');
+            
+            // Get commits since last tag
+            const lastTag = execSync('git describe --tags --abbrev=0 2>/dev/null || echo ""', { encoding: 'utf8' }).trim();
+            
+            let commitRange = 'HEAD';
+            if (lastTag) {
+              commitRange = `${lastTag}..HEAD`;
+            }
+            
+            const commits = execSync(`git log ${commitRange} --pretty=format:"- %s (%h)"`, { encoding: 'utf8' })
+              .trim()
+              .split('\n')
+              .filter(commit => commit.length > 0);
+            
+            const changelog = `## What's Changed
+            
+            ${commits.join('\n')}
+            
+            **Full Changelog**: https://github.com/${{ github.repository }}/compare/${lastTag || 'HEAD~1'}...${{ steps.version.outputs.new-version }}`;
+            
+            core.setOutput('changelog', changelog);
+
+      - name: Create and push tag
+        if: steps.version.outputs.should-release == 'true'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          
+          if [ -f "package.json" ]; then
+            git add package.json
+            git commit -m "chore: bump version to ${{ steps.version.outputs.new-version }}"
+          fi
+          
+          git tag -a v${{ steps.version.outputs.new-version }} -m "Release v${{ steps.version.outputs.new-version }}"
+          git push origin HEAD:${{ github.ref }}
+          git push origin v${{ steps.version.outputs.new-version }}
+
+      - name: Create Release
+        if: steps.version.outputs.should-release == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: `v${{ steps.version.outputs.new-version }}`,
+              name: `Release v${{ steps.version.outputs.new-version }}`,
+              body: `${{ steps.changelog.outputs.changelog }}`,
+              draft: false,
+              prerelease: false
+            });
+            
+            console.log(`Created release v${{ steps.version.outputs.new-version }}`); 

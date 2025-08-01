@@ -1,0 +1,16 @@
+name: Run Tests
+
+on:
+  pull_request:
+    branches: [main, master, develop]
+  push:
+    branches: [main, master, develop]
+
+jobs:
+  test:
+    uses: ./.github/workflows/reusable/test-runner.yml
+    with:
+      node-version: '18'
+      package-manager: 'npm'
+      test-command: 'test'
+    secrets: inherit 

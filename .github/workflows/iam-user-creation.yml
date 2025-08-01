@@ -1,0 +1,79 @@
+name: IAM User Creation
+
+on:
+  workflow_dispatch:
+    inputs:
+      username:
+        description: 'IAM username to create'
+        required: true
+        type: string
+      password:
+        description: 'Initial password for the user'
+        required: true
+        type: string
+      access_level:
+        description: 'Access level for the user'
+        required: false
+        default: 'readonly'
+        type: choice
+        options:
+          - readonly
+          - developer
+          - admin
+      force_password_change:
+        description: 'Force password change on first login'
+        required: false
+        default: true
+        type: boolean
+      create_access_keys:
+        description: 'Create access keys for the user'
+        required: false
+        default: false
+        type: boolean
+      groups:
+        description: 'Comma-separated list of IAM groups to add user to'
+        required: false
+        type: string
+
+jobs:
+  create-iam-user:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-session-name: iam-user-creation
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-pip
+          pip3 install boto3
+
+      - name: Run IAM user creation script
+        env:
+          USERNAME: ${{ github.event.inputs.username }}
+          PASSWORD: ${{ github.event.inputs.password }}
+          ACCESS_LEVEL: ${{ github.event.inputs.access_level }}
+          FORCE_PASSWORD_CHANGE: ${{ github.event.inputs.force_password_change }}
+          CREATE_ACCESS_KEYS: ${{ github.event.inputs.create_access_keys }}
+          GROUPS: ${{ github.event.inputs.groups }}
+        run: |
+          python3 .github/scripts/iam_user_creation.py
+
+      - name: Upload creation logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: iam-user-creation-logs
+          path: |
+            iam_logs/
+            *.log
+          retention-days: 30 
