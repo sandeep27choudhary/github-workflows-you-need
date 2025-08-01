@@ -1,0 +1,121 @@
+# Docker Build Configuration
+# This file defines default settings for Docker builds and ECR management
+
+# Default Docker build settings
+docker:
+  # Default image name
+  default_image_name: "my-app"
+  
+  # Default Dockerfile path
+  default_dockerfile: "Dockerfile"
+  
+  # Default build context
+  default_build_context: "."
+  
+  # Default platforms for multi-architecture builds
+  default_platforms: "linux/amd64,linux/arm64"
+  
+  # Default build arguments
+  default_build_args:
+    BUILDKIT_INLINE_CACHE: "1"
+    NODE_ENV: "production"
+  
+  # Default labels for Docker images
+  default_labels:
+    org.opencontainers.image.source: "https://github.com/your-org/your-repo"
+    org.opencontainers.image.description: "Application container image"
+    org.opencontainers.image.licenses: "MIT"
+
+# ECR Repository Settings
+ecr:
+  # Default AWS region
+  default_region: "us-east-1"
+  
+  # Default image tag mutability
+  default_tag_mutability: "MUTABLE"
+  
+  # Default scan on push
+  default_scan_on_push: true
+  
+  # Default encryption type
+  default_encryption_type: "AES256"
+  
+  # Default lifecycle policy (keep last 30 images)
+  default_lifecycle_policy: |
+    {
+      "rules": [
+        {
+          "rulePriority": 1,
+          "description": "Keep last 30 images",
+          "selection": {
+            "tagStatus": "any",
+            "countType": "imageCountMoreThan",
+            "countNumber": 30
+          },
+          "action": {
+            "type": "expire"
+          }
+        }
+      ]
+    }
+  
+  # Default retention days for cleanup
+  default_retention_days: 30
+
+# Versioning Strategies
+versioning:
+  # Available versioning strategies
+  strategies:
+    - semantic    # Use semantic versioning from git tags
+    - commit-sha  # Use commit SHA as version
+    - latest      # Always use 'latest' tag
+  
+  # Default versioning strategy
+  default_strategy: "semantic"
+  
+  # Default additional tags
+  default_tags: "dev,staging"
+
+# Cache Configuration
+cache:
+  # Default cache from registry
+  default_cache_from: "type=registry,ref=your-registry:buildcache"
+  
+  # Default cache to registry
+  default_cache_to: "type=registry,ref=your-registry:buildcache,mode=max"
+
+# Security Settings
+security:
+  # Enable vulnerability scanning
+  enable_scanning: true
+  
+  # Block builds with high severity vulnerabilities
+  block_high_severity: false
+  
+  # Require signed images
+  require_signed_images: false
+
+# Build Optimization
+optimization:
+  # Enable layer caching
+  enable_layer_caching: true
+  
+  # Enable multi-stage builds
+  enable_multi_stage: true
+  
+  # Enable buildkit
+  enable_buildkit: true
+  
+  # Parallel builds
+  parallel_builds: 2
+
+# Notification Settings
+notifications:
+  # Notify on build success
+  notify_success: true
+  
+  # Notify on build failure
+  notify_failure: true
+  
+  # Notify on security scan results
+  notify_security: true 

@@ -10,6 +10,8 @@ A comprehensive collection of modular, reusable GitHub Actions workflows that ca
 - **🏷️ Versioning & Releases**: Automatic semantic versioning and GitHub releases
 - **☁️ S3 Migration**: Cross-account S3 bucket migration with metadata preservation
 - **👤 IAM User Creation**: Create IAM users with minimal permissions and security policies
+- **🐳 Docker Build & Push**: Reusable Docker build workflow with ECR integration and versioning
+- **📦 ECR Management**: Create, update, and manage ECR repositories with lifecycle policies
 
 ## 📁 Project Structure
 
@@ -22,15 +24,20 @@ A comprehensive collection of modular, reusable GitHub Actions workflows that ca
 │   ├── version-and-release.yml       # Versioning and releases
 │   ├── s3-migration.yml              # S3 bucket migration
 │   ├── iam-user-creation.yml         # IAM user creation
+│   ├── docker-build.yml              # Docker build and push
+│   ├── ecr-management.yml            # ECR repository management
 │   ├── reusable/
-│   │   └── test-runner.yml           # Reusable test workflow
+│   │   ├── test-runner.yml           # Reusable test workflow
+│   │   └── docker-build-push.yml     # Reusable Docker build workflow
 │   └── config/
 │       ├── default_reviewers.yml     # Default reviewer config
 │       ├── default_sensitive_files.yml # Sensitive files config
-│       └── default_versioning.yml    # Versioning config
+│       ├── default_versioning.yml    # Versioning config
+│       └── default_docker.yml        # Docker build config
 ├── scripts/
 │   ├── s3_migration.py               # S3 migration script
-│   └── iam_user_creation.py          # IAM user creation script
+│   ├── iam_user_creation.py          # IAM user creation script
+│   └── ecr_management.py             # ECR management script
 ```
 
 ## 🛠️ Quick Start
@@ -244,6 +251,63 @@ Creates IAM users with:
 - Modify the Python script for custom policies
 - Add additional security policies
 - Configure different access levels
+
+### 🐳 Docker Build & Push
+
+**File**: `.github/workflows/docker-build.yml` (calls `.github/workflows/reusable/docker-build-push.yml`)
+
+Builds and pushes Docker images with:
+- Multi-architecture builds (amd64, arm64)
+- ECR integration with automatic login
+- Semantic versioning from git tags
+- Build caching for faster builds
+- Custom build arguments and labels
+- Multiple versioning strategies
+
+**Triggers**: PR to main/develop, push to main/develop, manual dispatch
+
+**Usage**:
+1. Ensure you have a `Dockerfile` in your repository
+2. Set up AWS credentials for ECR access
+3. Workflow runs automatically on code changes
+4. Manual dispatch available for custom builds
+
+**Customization**:
+```yaml
+jobs:
+  docker-build:
+    uses: ./.github/workflows/reusable/docker-build-push.yml
+    with:
+      image-name: 'my-app'
+      platforms: 'linux/amd64,linux/arm64'
+      push-to-ecr: true
+      version-strategy: 'semantic'
+```
+
+### 📦 ECR Management
+
+**File**: `.github/workflows/ecr-management.yml`
+
+Manages ECR repositories with:
+- Repository creation and updates
+- Lifecycle policy management
+- Image cleanup and retention
+- Security scanning configuration
+- Repository listing and information
+
+**Triggers**: Manual workflow dispatch
+
+**Usage**:
+1. Go to Actions → ECR Repository Management
+2. Select action (create, update, cleanup, list)
+3. Configure repository settings
+4. Run the workflow
+
+**Customization**:
+- Modify lifecycle policies
+- Configure retention periods
+- Set up security scanning
+- Customize encryption settings
 
 ## 🔄 Reusability
 

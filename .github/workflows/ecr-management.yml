@@ -1,0 +1,96 @@
+name: ECR Repository Management
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to perform'
+        required: true
+        type: choice
+        options:
+          - create
+          - update
+          - cleanup
+          - list
+      repository-name:
+        description: 'ECR repository name'
+        required: true
+        type: string
+      image-tag-mutability:
+        description: 'Image tag mutability'
+        required: false
+        default: 'MUTABLE'
+        type: choice
+        options:
+          - MUTABLE
+          - IMMUTABLE
+      scan-on-push:
+        description: 'Scan images on push'
+        required: false
+        default: true
+        type: boolean
+      encryption-type:
+        description: 'Encryption type'
+        required: false
+        default: 'AES256'
+        type: choice
+        options:
+          - AES256
+          - KMS
+      kms-key:
+        description: 'KMS key ID (required if encryption-type is KMS)'
+        required: false
+        type: string
+      lifecycle-policy:
+        description: 'Lifecycle policy (JSON string)'
+        required: false
+        default: '{"rules":[{"rulePriority":1,"description":"Keep last 30 images","selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":30},"action":{"type":"expire"}}]}'
+        type: string
+      retention-days:
+        description: 'Image retention days for cleanup'
+        required: false
+        default: '30'
+        type: string
+
+jobs:
+  ecr-management:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-pip
+          pip3 install boto3
+
+      - name: Run ECR management script
+        env:
+          ACTION: ${{ github.event.inputs.action }}
+          REPOSITORY_NAME: ${{ github.event.inputs.repository-name }}
+          IMAGE_TAG_MUTABILITY: ${{ github.event.inputs.image-tag-mutability }}
+          SCAN_ON_PUSH: ${{ github.event.inputs.scan-on-push }}
+          ENCRYPTION_TYPE: ${{ github.event.inputs.encryption-type }}
+          KMS_KEY: ${{ github.event.inputs.kms-key }}
+          LIFECYCLE_POLICY: ${{ github.event.inputs.lifecycle-policy }}
+          RETENTION_DAYS: ${{ github.event.inputs.retention-days }}
+        run: |
+          python3 .github/scripts/ecr_management.py
+
+      - name: Upload management logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ecr-management-logs
+          path: |
+            ecr_logs/
+            *.log
+          retention-days: 30 

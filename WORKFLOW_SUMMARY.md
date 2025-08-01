@@ -12,6 +12,8 @@ This document provides a quick overview of all available GitHub Actions workflow
 | **Version & Release** | `version-and-release.yml` | Push to main | Semantic versioning and GitHub releases | ❌ |
 | **S3 Migration** | `s3-migration.yml` | Manual | Cross-account S3 bucket migration | ✅ |
 | **IAM User Creation** | `iam-user-creation.yml` | Manual | Create IAM users with minimal permissions | ✅ |
+| **Docker Build & Push** | `docker-build.yml` | PR/Push/Manual | Build and push Docker images to ECR | ✅ |
+| **ECR Management** | `ecr-management.yml` | Manual | Manage ECR repositories and lifecycle | ✅ |
 
 ## 🔍 Detailed Workflow Information
 
@@ -177,6 +179,60 @@ version_bump_rules:
 
 **Triggers**: Manual workflow dispatch
 
+---
+
+### 7. Docker Build & Push (`docker-build.yml`)
+
+**Purpose**: Build and push Docker images to ECR with semantic versioning and multi-architecture support.
+
+**Features**:
+- ✅ Multi-architecture builds (amd64, arm64)
+- ✅ ECR integration with automatic login
+- ✅ Semantic versioning from git tags
+- ✅ Build caching for faster builds
+- ✅ Custom build arguments and labels
+- ✅ Multiple versioning strategies
+- ✅ Reusable workflow design
+
+**Configuration**:
+```yaml
+jobs:
+  docker-build:
+    uses: ./.github/workflows/reusable/docker-build-push.yml
+    with:
+      image-name: 'my-app'
+      platforms: 'linux/amd64,linux/arm64'
+      push-to-ecr: true
+      version-strategy: 'semantic'
+```
+
+**Triggers**: PR to main/develop, push to main/develop, manual dispatch
+
+---
+
+### 8. ECR Management (`ecr-management.yml`)
+
+**Purpose**: Manage ECR repositories including creation, updates, cleanup, and lifecycle policies.
+
+**Features**:
+- ✅ Repository creation and updates
+- ✅ Lifecycle policy management
+- ✅ Image cleanup and retention
+- ✅ Security scanning configuration
+- ✅ Repository listing and information
+- ✅ Encryption and KMS support
+
+**Inputs**:
+- `action`: Action to perform (create, update, cleanup, list)
+- `repository-name`: ECR repository name
+- `image-tag-mutability`: Image tag mutability setting
+- `scan-on-push`: Enable scan on push
+- `encryption-type`: Encryption type (AES256, KMS)
+- `lifecycle-policy`: Lifecycle policy JSON
+- `retention-days`: Image retention days
+
+**Triggers**: Manual workflow dispatch
+
 ## 🔧 Configuration Files
 
 | File | Purpose | Location |
@@ -184,6 +240,7 @@ version_bump_rules:
 | `default_reviewers.yml` | Default PR reviewer configuration | `.github/workflows/config/` |
 | `default_sensitive_files.yml` | Default sensitive file patterns | `.github/workflows/config/` |
 | `default_versioning.yml` | Default versioning rules | `.github/workflows/config/` |
+| `default_docker.yml` | Default Docker build configuration | `.github/workflows/config/` |
 
 ## 📁 Scripts
 
@@ -191,6 +248,7 @@ version_bump_rules:
 |--------|---------|--------------|
 | `s3_migration.py` | S3 bucket migration logic | boto3, botocore |
 | `iam_user_creation.py` | IAM user creation logic | boto3, botocore |
+| `ecr_management.py` | ECR repository management logic | boto3, botocore |
 
 ## 🔑 Required Secrets
 

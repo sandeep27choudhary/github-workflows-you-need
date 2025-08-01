@@ -1,0 +1,259 @@
+name: Docker Build and Push (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      image-name:
+        description: 'Docker image name'
+        required: true
+        type: string
+      dockerfile-path:
+        description: 'Path to Dockerfile'
+        required: false
+        default: 'Dockerfile'
+        type: string
+      build-context:
+        description: 'Build context path'
+        required: false
+        default: '.'
+        type: string
+      build-args:
+        description: 'Docker build arguments (JSON string)'
+        required: false
+        default: '{}'
+        type: string
+      platforms:
+        description: 'Target platforms for multi-architecture builds'
+        required: false
+        default: 'linux/amd64'
+        type: string
+      push-to-ecr:
+        description: 'Push to ECR registry'
+        required: false
+        default: true
+        type: boolean
+      ecr-repository:
+        description: 'ECR repository name'
+        required: false
+        type: string
+      aws-region:
+        description: 'AWS region for ECR'
+        required: false
+        default: 'us-east-1'
+        type: string
+      version-strategy:
+        description: 'Versioning strategy (semantic, commit-sha, latest)'
+        required: false
+        default: 'semantic'
+        type: string
+      cache-from:
+        description: 'Cache from registry (JSON string)'
+        required: false
+        default: '[]'
+        type: string
+      cache-to:
+        description: 'Cache to registry'
+        required: false
+        default: ''
+        type: string
+      labels:
+        description: 'Docker labels (JSON string)'
+        required: false
+        default: '{}'
+        type: string
+      tags:
+        description: 'Additional tags (comma-separated)'
+        required: false
+        default: ''
+        type: string
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: false
+      AWS_SECRET_ACCESS_KEY:
+        required: false
+      ECR_PASSWORD:
+        required: false
+
+jobs:
+  docker-build-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure AWS credentials
+        if: ${{ inputs.push-to-ecr }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ inputs.aws-region }}
+
+      - name: Login to Amazon ECR
+        if: ${{ inputs.push-to-ecr }}
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Determine version and tags
+        id: version
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { execSync } = require('child_process');
+            
+            let version = '';
+            let tags = [];
+            const imageName = '${{ inputs.image-name }}';
+            const versionStrategy = '${{ inputs.version-strategy }}';
+            const additionalTags = '${{ inputs.tags }}'.split(',').filter(tag => tag.trim());
+            
+            // Get ECR registry
+            const ecrRegistry = '${{ steps.login-ecr.outputs.registry }}';
+            const ecrRepository = '${{ inputs.ecr-repository }}' || imageName;
+            
+            switch (versionStrategy) {
+              case 'semantic':
+                // Get semantic version from git tags
+                try {
+                  const lastTag = execSync('git describe --tags --abbrev=0 2>/dev/null || echo ""', { encoding: 'utf8' }).trim();
+                  if (lastTag) {
+                    version = lastTag.replace('v', '');
+                  } else {
+                    version = '0.1.0';
+                  }
+                } catch (error) {
+                  version = '0.1.0';
+                }
+                break;
+                
+              case 'commit-sha':
+                version = context.sha.substring(0, 8);
+                break;
+                
+              case 'latest':
+                version = 'latest';
+                break;
+                
+              default:
+                version = 'latest';
+            }
+            
+            // Build tags array
+            if (ecrRegistry && inputs.push-to-ecr) {
+              tags.push(`${ecrRegistry}/${ecrRepository}:${version}`);
+              if (versionStrategy === 'semantic') {
+                tags.push(`${ecrRegistry}/${ecrRepository}:latest`);
+              }
+            } else {
+              tags.push(`${imageName}:${version}`);
+              if (versionStrategy === 'semantic') {
+                tags.push(`${imageName}:latest`);
+              }
+            }
+            
+            // Add additional tags
+            additionalTags.forEach(tag => {
+              if (tag.trim()) {
+                if (ecrRegistry && inputs.push-to-ecr) {
+                  tags.push(`${ecrRegistry}/${ecrRepository}:${tag.trim()}`);
+                } else {
+                  tags.push(`${imageName}:${tag.trim()}`);
+                }
+              }
+            });
+            
+            console.log(`Version: ${version}`);
+            console.log(`Tags: ${tags.join(', ')}`);
+            
+            core.setOutput('version', version);
+            core.setOutput('tags', tags.join(','));
+            core.setOutput('ecr-registry', ecrRegistry);
+            core.setOutput('ecr-repository', ecrRepository);
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.version.outputs.tags }}
+          labels: ${{ inputs.labels }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha
+
+      - name: Parse build args
+        id: build-args
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const buildArgs = JSON.parse('${{ inputs.build-args }}');
+            const buildArgsString = Object.entries(buildArgs)
+              .map(([key, value]) => `--build-arg ${key}=${value}`)
+              .join(' ');
+            core.setOutput('build-args-string', buildArgsString);
+
+      - name: Parse cache configuration
+        id: cache-config
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const cacheFrom = JSON.parse('${{ inputs.cache-from }}');
+            const cacheTo = '${{ inputs.cache-to }}';
+            
+            let cacheFromString = '';
+            let cacheToString = '';
+            
+            if (cacheFrom.length > 0) {
+              cacheFromString = cacheFrom.map(cache => `--cache-from ${cache}`).join(' ');
+            }
+            
+            if (cacheTo) {
+              cacheToString = `--cache-to ${cacheTo}`;
+            }
+            
+            core.setOutput('cache-from-string', cacheFromString);
+            core.setOutput('cache-to-string', cacheToString);
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ inputs.build-context }}
+          file: ${{ inputs.dockerfile-path }}
+          platforms: ${{ inputs.platforms }}
+          push: ${{ inputs.push-to-ecr }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: ${{ steps.build-args.outputs.build-args-string }}
+          cache-from: ${{ steps.cache-config.outputs.cache-from-string }}
+          cache-to: ${{ steps.cache-config.outputs.cache-to-string }}
+          provenance: false
+
+      - name: Output image information
+        run: |
+          echo "🎉 Docker image built and pushed successfully!"
+          echo "📦 Image: ${{ steps.version.outputs.tags }}"
+          echo "🏷️  Version: ${{ steps.version.outputs.version }}"
+          if [ "${{ inputs.push-to-ecr }}" = "true" ]; then
+            echo "☁️  ECR Registry: ${{ steps.version.outputs.ecr-registry }}"
+            echo "📁 ECR Repository: ${{ steps.version.outputs.ecr-repository }}"
+          fi
+          echo "🏗️  Platforms: ${{ inputs.platforms }}"
+          echo "📋 Build Context: ${{ inputs.build-context }}"
+          echo "🐳 Dockerfile: ${{ inputs.dockerfile-path }}"
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-build-logs
+          path: |
+            .docker/
+            build.log
+          retention-days: 30 

@@ -1,0 +1,52 @@
+name: Docker Build and Push
+
+on:
+  push:
+    branches: [main, master, develop]
+    tags: ['v*']
+  pull_request:
+    branches: [main, master, develop]
+  workflow_dispatch:
+    inputs:
+      image-name:
+        description: 'Docker image name'
+        required: true
+        default: 'my-app'
+        type: string
+      push-to-ecr:
+        description: 'Push to ECR registry'
+        required: false
+        default: true
+        type: boolean
+      ecr-repository:
+        description: 'ECR repository name (optional)'
+        required: false
+        type: string
+      version-strategy:
+        description: 'Versioning strategy'
+        required: false
+        default: 'semantic'
+        type: choice
+        options:
+          - semantic
+          - commit-sha
+          - latest
+
+jobs:
+  docker-build:
+    uses: ./.github/workflows/reusable/docker-build-push.yml
+    with:
+      image-name: ${{ github.event.inputs.image-name || 'my-app' }}
+      dockerfile-path: 'Dockerfile'
+      build-context: '.'
+      build-args: '{"BUILDKIT_INLINE_CACHE": "1"}'
+      platforms: 'linux/amd64,linux/arm64'
+      push-to-ecr: ${{ github.event.inputs.push-to-ecr != 'false' }}
+      ecr-repository: ${{ github.event.inputs.ecr-repository }}
+      aws-region: 'us-east-1'
+      version-strategy: ${{ github.event.inputs.version-strategy || 'semantic' }}
+      cache-from: '["type=registry,ref=${{ github.repository }}:buildcache"]'
+      cache-to: 'type=registry,ref=${{ github.repository }}:buildcache,mode=max'
+      labels: '{"org.opencontainers.image.source": "${{ github.server_url }}/${{ github.repository }}", "org.opencontainers.image.revision": "${{ github.sha }}"}'
+      tags: 'dev,staging'
+    secrets: inherit 
